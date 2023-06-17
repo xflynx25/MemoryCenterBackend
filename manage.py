@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """Django's command-line utility for administrative tasks."""
+print('in manage.py')
 import os
 import sys
-
-
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MemoryCenter-backend.settings')

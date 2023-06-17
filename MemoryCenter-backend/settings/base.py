@@ -9,14 +9,13 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
-
+print('in base')
 from pathlib import Path
 import os 
 SECRET_KEY = os.environ.get('SECRET_KEY')
-try: 
-    DEBUG = bool(os.environ.get('DEBUG'))
-except:
-    print('Debug improperly set, defaulting to False')
+if 'True' == os.environ.get('DEBUG'):
+    DEBUG = True
+else:
     DEBUG = False
 
 
