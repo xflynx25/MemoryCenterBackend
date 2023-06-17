@@ -11,16 +11,21 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
-from .main_settings_secrets import SECRET_KEY
+import os 
+SECRET_KEY = os.environ.get('SECRET_KEY')
+try: 
+    DEBUG = bool(os.environ.get('DEBUG'))
+except:
+    print('Debug improperly set, defaulting to False')
+    DEBUG = False
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 APPLICATION_NAME = 'MemoryCenter-backend' 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
 ALLOWED_HOSTS = []
 
