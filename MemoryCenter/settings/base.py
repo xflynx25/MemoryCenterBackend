@@ -22,7 +22,7 @@ else:
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-APPLICATION_NAME = 'MemoryCenter-backend' 
+APPLICATION_NAME = 'MemoryCenter' 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -35,6 +35,7 @@ CORS_ALLOW_CREDENTIALS = False
 # Application definition
 
 INSTALLED_APPS = [
+    APPLICATION_NAME, 
     'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -144,3 +145,11 @@ SIMPLE_JWT = {
 }
 
 APPEND_SLASH = False
+
+# MY ADDITIONS:
+# =============
+AUTH_USER_MODEL = APPLICATION_NAME + '.CustomUser'
+
+# with 6,4, we get level 0,1,2,3,4,4,4,4,5 --> stored as 0,1,2,3,4,5,6,7,8 .. with 8 being in retirement mode. 
+NUMBER_OF_VISIBLE_LEVELS = 6
+TOP_SCORE_REPEATS = 4 

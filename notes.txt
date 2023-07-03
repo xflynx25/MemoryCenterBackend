@@ -1,0 +1,6 @@
+7/3/22
+1. As we grow, we will need to consider sharding and rethink database
+2. Should organize more along lines of fault seperation
+3. Webauthn 
+4. When users leave, right now all their data will die. We can offer them to alow for owner transfership, or farm donation, where anyone could 
+    pluck it and take responsibility. But...if they were only user, once they leave, ok it is still owned by death (user -1). 
