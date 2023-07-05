@@ -11,7 +11,7 @@ class CustomUser(AbstractUser):
 
 class TopicTable(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    topicname = models.CharField(max_length=30)
+    topic_name = models.CharField(max_length=30)
     description = models.CharField(max_length=100, blank=True)
     visibility = models.CharField(max_length=30, default='private')
     #visibility_last_change = models.CharField(max_length=30) # to stop constant switching, time consuming operation, maybe not necessary
@@ -24,7 +24,7 @@ class CollectionTable(models.Model):
     description = models.CharField(max_length=750, blank=True)
     visibility = models.CharField(max_length=30, default='private')
     #visibility_last_change = models.CharField(max_length=30) # to stop constant switching, time consuming operation, maybe not necessary
-    topics = models.ManyToManyField(TopicTable, through='CollectionTopic')
+    topics = models.ManyToManyField(TopicTable, through='CollectionTopic', blank=True)
 
 class CollectionTopic(models.Model):
     collection = models.ForeignKey(CollectionTable, on_delete=models.CASCADE)

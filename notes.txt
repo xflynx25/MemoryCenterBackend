@@ -4,3 +4,9 @@
 3. Webauthn 
 4. When users leave, right now all their data will die. We can offer them to alow for owner transfership, or farm donation, where anyone could 
     pluck it and take responsibility. But...if they were only user, once they leave, ok it is still owned by death (user -1). 
+
+7/5/22 
+1. when further along, get rid of password from serializer and move to views 
+2. another security vulnerability as we let people update all fields, so this includes user and maybe id. We should manually override update method 
+3. the bookkeeping around adding and getting rid of users access to collections and stuff. Setup and teardown of their items records, is sloppy right now. Eventually, should be looked at deeeply. 
+4. probably, these methods are returning a ton of extra info, the whole data rather than only the necessary. We can fix this later. 

@@ -20,6 +20,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
     
+    # we see, that updates have default value to their selected value, if only a partial is passed in. 
     def update(self, instance, validated_data):
         instance.realname = validated_data.get('realname', instance.realname)
         instance.description = validated_data.get('description', instance.description)
@@ -37,7 +38,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
 class TopicTableSerializer(serializers.ModelSerializer):
     class Meta:
         model = TopicTable
-        fields = ['id', 'user', 'topicname', 'description', 'visibility']
+        fields = ['id', 'user', 'topic_name', 'description', 'visibility']
 
 
 class CollectionTopicSerializer(serializers.ModelSerializer):
@@ -66,6 +67,4 @@ class UserItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserItem
         fields = ['id', 'item', 'user', 'last_seen', 'score']
-
-
 

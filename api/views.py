@@ -7,6 +7,11 @@ from django.db.models import Q
 
 from django.shortcuts import get_object_or_404
 
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
 import json
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -33,268 +38,294 @@ try:
     else:
         raise Exception()
 except:
-    from dummy_views import DummyView 
+    from .dummy_views import DummyView 
     UserViewSet = DummyView 
 
 
 @csrf_exempt
+@api_view(['POST'])
 def user_login(request):
-    if request.method == "POST":
-        data = json.loads(request.body)
-        username = data.get("username")
-        password = data.get("password")
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
-            refresh = RefreshToken.for_user(user)
-            return JsonResponse({
-                'status': 'success',
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            })
-        else:
-            return JsonResponse({"status": "failure"})
+    data = request.data
+    username = data.get("username")
+    password = data.get("password")
+    user = authenticate(request, username=username, password=password)
+    if user is not None:
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'status': 'success',
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        })
     else:
-        return JsonResponse({"status": "not post method"})
-
+        return Response({"status": "failure"})
+    
 @csrf_exempt
+@api_view(['POST'])
 def user_register(request):
-    if request.method == "POST":
-        data = json.loads(request.body)
-        username = data.get("username")
-        password = data.get("password")
-        if CustomUser.objects.filter(username=username).exists():
-            return JsonResponse({"status": "failure", "error": "Username already exists"})
-        elif not username or not password:
-            return JsonResponse({"status": "failure", "error": "Empty username or password"})
-        else:
-            user = CustomUser.objects.create_user(username=username)
-            user.set_password(password)  # Hash the password before saving
-            user.save()
-
-            refresh = RefreshToken.for_user(user)
-            return JsonResponse({
-                'status': 'success',
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                }, 
-                status=201
-            )
+    data = request.data
+    username = data.get("username")
+    password = data.get("password")
+    if CustomUser.objects.filter(username=username).exists():
+        return Response({"status": "failure", "error": "Username already exists"})
+    elif not username or not password:
+        return Response({"status": "failure", "error": "Empty username or password"})
     else:
-        return JsonResponse({"status": "failure", "error": "Not a POST request"})
+        user = CustomUser.objects.create_user(username=username)
+        user.set_password(password)  # Hash the password before saving
+        user.save()
 
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'status': 'success',
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            }, 
+            status=201
+        )
 
-
-@csrf_exempt
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def home(request):
-    user = request.user
-    return JsonResponse({
-        'username': user.username,
-        'password': user.password
-    })
+    return view_profile(request)
 
 
 
+"""
+=====
+HELPERS
+=====
+"""
+def get_user(request, user_id):
+    if user_id is None:
+        return request.user
+    else:
+        return get_object_or_404(CustomUser, id=user_id)
 
+
+def get_objects(user, request_user, model, serializer):
+    if user == request_user:
+        objects = model.objects.filter(user=user)
+    else:
+        objects = model.objects.filter(Q(user=user) & (Q(visibility='global_edit') | Q(visibility='global_view')))
+    return serializer(objects, many=True).data
+
+# does user have access_type ('view' or 'edit') to object (obj)
+# later can extend for friends
+def has_access(obj, user, access_type):
+    if access_type == 'edit':
+        if obj.user != user and obj.visibility != 'global_edit':
+            return False
+    elif access_type == 'view':
+        if not (obj.user == user or obj.visibility in ('global_edit', 'global_view')):
+            return False 
+    return True 
+
+
+"""
+=====
+GOOD
+=====
+"""
 
 # viewing profile
-@login_required
+#-- request: {userid} or none if viewing self
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def view_profile(request):
-    user = request.user
+    user_id = request.query_params.get('user_id', None)
+    if user_id is None:
+        user = request.user
+    else:
+        user = get_object_or_404(CustomUser, id=user_id)
     serializer = CustomUserSerializer(user)
-    return JsonResponse(serializer.data, safe=False)
+    return Response(serializer.data)
 
 # editing profile
-@login_required
+#-- request: one or more fields, with the new values
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def edit_profile(request):
-    if request.method == "POST":
-        user = request.user
-        serializer = CustomUserSerializer(user, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data)
-        return JsonResponse(serializer.errors, status=400)
-    return JsonResponse({"error": "Invalid method"}, status=400)
+    user = request.user
+    serializer = CustomUserSerializer(user, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=400)
 
-# all items for a user
-@login_required
-def get_all_items(request, username=None):
-    if username is None:
-        user = request.user
-    else:
-        user = get_object_or_404(CustomUser, username=username)
-    if user == request.user:
-        user_items = UserItem.objects.filter(user=user)
-    else:
-        user_items = UserItem.objects.filter(Q(user=user) & (Q(visibility='global_edit') | Q(visibility='global_view')))
-    
-    serializer = UserItemSerializer(user_items, many=True)
-    return JsonResponse(serializer.data, safe=False)
+#-- request: {userid} or none if viewing self
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_all_items(request, user_id=None):
+    user = get_user(request, user_id)
+    data = get_objects(user, request.user, UserItem, UserItemSerializer)
+    return Response(data)
 
-# all topics for a user
-@login_required
-def get_all_topics(request, username=None):
-    if username is None:
-        user = request.user
-    else:
-        user = get_object_or_404(CustomUser, username=username)
-    if user == request.user:
-        topics = TopicTable.objects.filter(user=user)
-    else:
-        topics = TopicTable.objects.filter(Q(user=user) & (Q(visibility='global_edit') | Q(visibility='global_view')))
-    serializer = TopicTableSerializer(topics, many=True)
-    return JsonResponse(serializer.data, safe=False)
+#-- request: {userid} or none if viewing self
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_all_topics(request, user_id=None):
+    user = get_user(request, user_id)
+    data = get_objects(user, request.user, TopicTable, TopicTableSerializer)
+    return Response(data)
 
-# all collections for a user
-@login_required
-def get_all_collections(request, username=None):
-    if username is None:
-        user = request.user
-    else:
-        user = get_object_or_404(CustomUser, username=username)
-    if user == request.user:
-        collections = CollectionTable.objects.filter(user=user)
-    else:
-        collections = CollectionTable.objects.filter(Q(user=user) & (Q(visibility='global_edit') | Q(visibility='global_view')))
-    serializer = CollectionTableSerializer(collections, many=True)
-    return JsonResponse(serializer.data, safe=False)
+#-- request: {userid} or none if viewing self
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_all_collections(request, user_id=None):
+    user = get_user(request, user_id)
+    data = get_objects(user, request.user, CollectionTable, CollectionTableSerializer)
+    return Response(data)
 
-
-# create a collection under a specific user. Only needs to specify a name
-@login_required
+#-- request: req {collection_name} optional {description, visibility}
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def create_collection(request):
-    if request.method == "POST":
-        data = json.loads(request.body)
-        data["user"] = request.user.id
-        serializer = CollectionTableSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data, status=201)
-        return JsonResponse(serializer.errors, status=400)
-    return JsonResponse({"error": "Invalid method"}, status=400)
+    data = request.data
+    collection_name = data.get('collection_name')
+    if not collection_name:
+        return Response({"error": "No collection name provided"}, status=400)
 
-# create a topic under a specific user. Only needs to specify a name
-@login_required
+    data["user"] = request.user.id
+    serializer = CollectionTableSerializer(data=data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=201)
+    return Response(serializer.errors, status=400)
+
+#-- request: req {topic_name} optional {description, visibility}
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def create_topic(request):
-    if request.method == "POST":
-        data = json.loads(request.body)
-        data["user"] = request.user.id
-        serializer = TopicTableSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(serializer.data, status=201)
-        return JsonResponse(serializer.errors, status=400)
-    return JsonResponse({"error": "Invalid method"}, status=400)
+    data = request.data
+    topic_name = data.get('topic_name')
+    if not topic_name:
+        return Response({"error": "No topic name provided"}, status=400)
 
-# COMPLICATED: edit_topics_in_collection and the next couple of methods involve more complex operations
-# It's hard to implement these without knowing the specific interactions between users, collections, and topics
-# You will likely need to add more information in the request and then process this on the server side.
+    data["user"] = request.user.id
+    serializer = TopicTableSerializer(data=data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=201)
+    return Response(serializer.errors, status=400)
 
-# for all of these, we need to first check that you have access. 
-# for making changes to collections and topics, you always have access if you are the user owner
-# if visibility is 'global_edit', then you also can make changes
-# otherwise, you cannot perform the action, and it should return an error
-
-
-# edit topics in a collection
-# ARGS: list of
-# collection
-# topic
-# what='add','del','flip_activity' 
-# FUNCTION: if add or del, we just add to the CollectionTopic and initialize is_active = True, if what=='flip_activity' just not the is_active field. 
-@login_required
+# FUNCTION: if add or del, we just add to the CollectionTopic and initialize is_active = True, if what=='update' just not the is_active field. 
+#-- request: required {collection_id, topic_edits -> [[topic_id, what], [topic_id, what], ...]} where what='add','del','update' 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def edit_topics_in_collection(request):
-    if request.method == "POST":
-        collection_id = request.data.get('collection')
-        topic_ids = request.data.get('topics')
-        action = request.data.get('what')
+    collection_id = request.data.get('collection_id')
+    topic_edits = request.data.get('topic_edits')
 
-        # Fetch the collection
-        collection = get_object_or_404(CollectionTable, id=collection_id)
+    # Fetch the collection
+    collection = get_object_or_404(CollectionTable, id=collection_id)
 
+    # Check if the user has access
+    if not has_access(collection, request.user, 'edit'):
+        return Response({"error": "Unauthorized Collection"}, status=401)
+
+    for topic_edit in topic_edits:
+        topic_id, action = topic_edit
+        topic = get_object_or_404(TopicTable, id=topic_id)
         # Check if the user has access
-        if collection.user != request.user and collection.visibility != 'global_edit':
-            return JsonResponse({"error": "Unauthorized"}, status=401)
+        if not has_access(topic, request.user, 'edit'):
+            return Response({"error": "Unauthorized Topic"}, status=401)
+        
+        if action == 'add':
+            CollectionTopic.objects.create(collection=collection, topic=topic, is_active=True)
+        elif action == 'del':
+            collection.topics.remove(topic)
+            #CollectionTopic.objects.filter(collection=collection, topic=topic).delete()
+        elif action == 'update':
+            collection_topic = get_object_or_404(CollectionTopic, collection=collection, topic=topic)
+            collection_topic.is_active = not collection_topic.is_active
+            collection_topic.save()
 
-        for topic_id in topic_ids:
-            topic = get_object_or_404(TopicTable, id=topic_id)
-            if action == 'add':
-                CollectionTopic.objects.create(collection=collection, topic=topic, is_active=True)
-            elif action == 'del':
-                CollectionTopic.objects.filter(collection=collection, topic=topic).delete()
-            elif action == 'flip_activity':
-                collection_topic = get_object_or_404(CollectionTopic, collection=collection, topic=topic)
-                collection_topic.is_active = not collection_topic.is_active
-                collection_topic.save()
+    return Response({"status": "success"}, status=200)
 
-        return JsonResponse({"status": "success"}, status=200)
 
-    return JsonResponse({"error": "Invalid method"}, status=400)
 
-# Add items to a topic
-# ARGS: list of
-# topic
+
+
 # item information: front, back
 # FUNCTION: Add items to a topic, this means creating the item in ItemTable, and thus initializing the UserItem
-@login_required
+# initialize the user item with the user. it is done 
+#-- request: required {topic_id, items -> [[front, back], [front, back], ...]}
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def add_items_to_topic(request):
-    if request.method == "POST":
-        topic_id = request.data.get('topic')
-        items = request.data.get('items')
+    topic_id = request.data.get('topic_id')
+    items = request.data.get('items')
 
-        # Fetch the topic
-        topic = get_object_or_404(TopicTable, id=topic_id)
+    # Fetch the topic
+    topic = get_object_or_404(TopicTable, id=topic_id)
+
+    # Check if the user has access
+    if not has_access(topic, request.user, 'edit'):
+        return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    for item in items:
+        front = item.get('front')
+        back = item.get('back')
+        
+        # Check if front and back are provided
+        if not front or not back:
+            return Response({"error": "Both front and back should be provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        item_instance = ItemTable.objects.create(topic=topic, front=front, back=back)
+        UserItem.objects.create(item=item_instance, user=request.user)
+
+    return Response({"status": "success"}, status=status.HTTP_200_OK)
+
+
+# very similar to edit_topics_in_collection, delete, update
+# Delete or updating items from a topic, used to just be deletion so need to change
+# FUNCTION: delete all items, this should be as simple as deleting from ItemTable since it will cascade.
+#-- request: required {topic_id, item_edits -> [{id, what, front, back}], [item_id, what], ...]} where what='del','update' , and front/back is '' if what=='del'
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def edit_items_in_topic(request):
+    topic_id = request.data.get('topic')
+    item_edits = request.data.get('item_edits')
+
+    # Fetch the topic
+    topic = get_object_or_404(TopicTable, id=topic_id)#current db implementation stores items independently so ez to look up
+
+    for item_edit in item_edits:
+        item_id = item_edit.get('id')
+        action = item_edit.get('what')
+        item = get_object_or_404(ItemTable, id=item_id)
 
         # Check if the user has access
-        if topic.user != request.user and topic.visibility != 'global_edit':
-            return JsonResponse({"error": "Unauthorized"}, status=401)
+        if not has_access(item.topic, request.user, 'edit'):
+            return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        for item in items:
-            item_instance = ItemTable.objects.create(topic=topic, front=item['front'], back=item['back'])
-            UserItem.objects.create(item=item_instance, user=request.user)
-
-        return JsonResponse({"status": "success"}, status=200)
-
-    return JsonResponse({"error": "Invalid method"}, status=400)
-
-# Delete items from a topic
-# ARGS: list of
-# item_id
-# FUNCTION: delete all items, this should be as simple as deleting from ItemTable since it will cascade.
-@login_required
-def delete_items_from_topic(request):
-    if request.method == "POST":
-        item_ids = request.data.get('items')
-
-        for item_id in item_ids:
-            item = get_object_or_404(ItemTable, id=item_id)
-
-            # Check if the user has access
-            if item.topic.user != request.user and item.topic.visibility != 'global_edit':
-                return JsonResponse({"error": "Unauthorized"}, status=401)
-
+        if action == 'del':
             item.delete()
+        elif action == 'update':
+            new_front = item_edit.get('front')
+            new_back = item_edit.get('back')
+            front = new_front if new_front else item.front
+            back = new_back if new_back else item.back
+            item_serializer = ItemTableSerializer(data={'topic': topic_id, 'front': front, 'back': back})
+            if item_serializer.is_valid():
+                item_instance = item_serializer.save()
 
-        return JsonResponse({"status": "success"}, status=200)
-
-    return JsonResponse({"error": "Invalid method"}, status=400)
+    return Response({"status": "success"}, status=status.HTTP_200_OK)
 
 
-# fetch the score, front, and back from the least recent n items in the collection
-@login_required
+# Fetch the score, front, and back from the least recent n items in the collection, 
+# that satisfy the property that score < WAIT_SCORE = 5
+#-- request: required {collection_id, n}
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def fetch_n_from_collection(request):
-    try:
-        collection_id = request.GET.get('collection_id')
-        n = int(request.GET.get('n'))
-        user = request.user
+    collection_id = request.GET.get('collection_id')
+    n = int(request.GET.get('n'))
+    user = request.user
 
-        collection = CollectionTable.objects.get(id=collection_id)
-    except:
-        raise Http404("Invalid request")
-
-    if not (collection.user == user or collection.visibility in ('global_edit', 'global_view')):
-        raise Http404("The user does not have access to this collection")
+    collection = get_object_or_404(CollectionTable, id=collection_id)
+    if not has_access(collection, user, 'view'):
+        return Response({"error": "Unauthorized"}, status=401)
 
     topics_in_collection = collection.topics.all()
 
@@ -303,27 +334,25 @@ def fetch_n_from_collection(request):
         item__topic__in=topics_in_collection
     ).select_related('item').order_by('last_seen')[:n]
 
-    results = []
-    for user_item in user_items:
-        results.append({
-            'front': user_item.item.front,
-            'back': user_item.item.back,
-            'score': user_item.score,
-        })
+    # logic having to do with the nonlinearity of the higher levels 
 
-    return JsonResponse(results, safe=False)
+    serializer = UserItemSerializer(user_items, many=True)
+    return Response(serializer.data)
 
-@login_required
+
+# Increments the score, unless score == MAX_SCORE
+#-- request: required {items -> {item_id, increment} where increment is 1 or -1 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def update_n_items_user(request):
-    MAX_SCORE = os.getenv('MAX_SCORE')
-    if request.method == "POST":
-        data = json.loads(request.body)
-        items_data = data.get("items", [])
-        for item_data in items_data:
-            item_id = item_data.get("id")
-            increment = item_data.get("increment")
-            user_item = get_object_or_404(UserItem, id=item_id, user=request.user)
-            user_item.score = min(max(0, user_item.score + increment), MAX_SCORE)
-            user_item.save()
-        return JsonResponse({"status": "success"})
-    return JsonResponse({"error": "Invalid method"}, status=400)
+    MAX_SCORE = int(os.getenv('MAX_SCORE'))
+    print('MAX_SCORE IS ', MAX_SCORE)
+    items_data = request.data.get("items", [])
+    for item_data in items_data:
+        item_id = item_data.get("item_id")
+        increment = item_data.get("increment")
+        user_item = get_object_or_404(UserItem, id=item_id, user=request.user)
+        user_item.score = min(max(0, user_item.score + increment), MAX_SCORE)
+        user_item.save()
+    return Response({"status": "success"})
+
