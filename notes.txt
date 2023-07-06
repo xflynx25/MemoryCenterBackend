@@ -10,3 +10,6 @@
 2. another security vulnerability as we let people update all fields, so this includes user and maybe id. We should manually override update method 
 3. the bookkeeping around adding and getting rid of users access to collections and stuff. Setup and teardown of their items records, is sloppy right now. Eventually, should be looked at deeeply. 
 4. probably, these methods are returning a ton of extra info, the whole data rather than only the necessary. We can fix this later. 
+
+7/6/22 
+1. we are sending password over with the view_profile

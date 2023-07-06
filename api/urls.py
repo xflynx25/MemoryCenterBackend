@@ -11,7 +11,8 @@ router.register(r'users', views.UserViewSet, basename='users')
 
 urlpatterns = [
     # browsing-mode
-    path('view_profile/', views.view_profile, name='view_profile'), #for self or others
+    path('view_profile/', views.view_profile, name='view_profile'), #for self
+    path('view_profile/<int:user_id>/', views.view_profile, name='view_profile'), #for others
     path('edit_profile/', views.edit_profile, name='edit_profile'), #for self
     path('get_all_items/', views.get_all_items, name='get_all_items'), #for self, or public if others
     path('get_all_topics/', views.get_all_topics, name='get_all_topics'), #for self, or public if others
@@ -22,7 +23,7 @@ urlpatterns = [
     path('create_topic/', views.create_topic, name='create_topic'),
     path('edit_topics_in_collection/', views.edit_topics_in_collection, name='edit_topics_in_collection'), #could be own or others topics, maybe shouldn't be plural
     path('add_items_to_topic/', views.add_items_to_topic, name='add_items_to_topic'), 
-    path('delete_items_from_topic/', views.delete_items_from_topic, name='delete_items_from_topic'), 
+    path('edit_items_in_topic/', views.edit_items_in_topic, name='edit_items_in_topic'), 
 
     # study-mode
     path('fetch_n_from_collection/', views.fetch_n_from_collection, name='fetch_n_from_collection'), #send to client next cards to study

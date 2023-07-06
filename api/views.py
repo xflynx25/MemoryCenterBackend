@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse,  Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q
-
+from django.utils import timezone
 
 from django.shortcuts import get_object_or_404
 
@@ -131,8 +131,7 @@ GOOD
 #-- request: {userid} or none if viewing self
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def view_profile(request):
-    user_id = request.query_params.get('user_id', None)
+def view_profile(request, user_id=None):
     if user_id is None:
         user = request.user
     else:
@@ -180,7 +179,7 @@ def get_all_collections(request, user_id=None):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_collection(request):
-    data = request.data
+    data = request.data.copy()
     collection_name = data.get('collection_name')
     if not collection_name:
         return Response({"error": "No collection name provided"}, status=400)
@@ -196,7 +195,7 @@ def create_collection(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_topic(request):
-    data = request.data
+    data = request.data.copy()
     topic_name = data.get('topic_name')
     if not topic_name:
         return Response({"error": "No topic name provided"}, status=400)
@@ -209,7 +208,7 @@ def create_topic(request):
     return Response(serializer.errors, status=400)
 
 # FUNCTION: if add or del, we just add to the CollectionTopic and initialize is_active = True, if what=='update' just not the is_active field. 
-#-- request: required {collection_id, topic_edits -> [[topic_id, what], [topic_id, what], ...]} where what='add','del','update' 
+#-- request: required {collection_id, topic_edits -> [[topic_id, what], [topic_id, what], ...]} where what='add','delete','update' 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def edit_topics_in_collection(request):
@@ -232,9 +231,9 @@ def edit_topics_in_collection(request):
         
         if action == 'add':
             CollectionTopic.objects.create(collection=collection, topic=topic, is_active=True)
-        elif action == 'del':
-            collection.topics.remove(topic)
-            #CollectionTopic.objects.filter(collection=collection, topic=topic).delete()
+        elif action == 'delete':
+            #collection.topics.remove(topic)
+            CollectionTopic.objects.filter(collection=collection, topic=topic).delete()
         elif action == 'update':
             collection_topic = get_object_or_404(CollectionTopic, collection=collection, topic=topic)
             collection_topic.is_active = not collection_topic.is_active
@@ -256,21 +255,20 @@ def add_items_to_topic(request):
     topic_id = request.data.get('topic_id')
     items = request.data.get('items')
 
+
     # Fetch the topic
     topic = get_object_or_404(TopicTable, id=topic_id)
 
     # Check if the user has access
     if not has_access(topic, request.user, 'edit'):
         return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
-
+    
     for item in items:
-        front = item.get('front')
-        back = item.get('back')
-        
-        # Check if front and back are provided
-        if not front or not back:
+        try:
+            front, back = item
+        except: 
             return Response({"error": "Both front and back should be provided."}, status=status.HTTP_400_BAD_REQUEST)
-
+        
         item_instance = ItemTable.objects.create(topic=topic, front=front, back=back)
         UserItem.objects.create(item=item_instance, user=request.user)
 
@@ -280,7 +278,7 @@ def add_items_to_topic(request):
 # very similar to edit_topics_in_collection, delete, update
 # Delete or updating items from a topic, used to just be deletion so need to change
 # FUNCTION: delete all items, this should be as simple as deleting from ItemTable since it will cascade.
-#-- request: required {topic_id, item_edits -> [{id, what, front, back}], [item_id, what], ...]} where what='del','update' , and front/back is '' if what=='del'
+#-- request: required {topic_id, item_edits -> [{id, what, front, back}], [item_id, what], ...]} where what='delete','update' , and front/back is '' if what=='delete'
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def edit_items_in_topic(request):
@@ -299,7 +297,7 @@ def edit_items_in_topic(request):
         if not has_access(item.topic, request.user, 'edit'):
             return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        if action == 'del':
+        if action == 'delete':
             item.delete()
         elif action == 'update':
             new_front = item_edit.get('front')
@@ -345,14 +343,14 @@ def fetch_n_from_collection(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def update_n_items_user(request):
-    MAX_SCORE = int(os.getenv('MAX_SCORE'))
-    print('MAX_SCORE IS ', MAX_SCORE)
+    MAX_SCORE = 8#int(os.getenv('MAX_SCORE'))
     items_data = request.data.get("items", [])
     for item_data in items_data:
         item_id = item_data.get("item_id")
         increment = item_data.get("increment")
         user_item = get_object_or_404(UserItem, id=item_id, user=request.user)
         user_item.score = min(max(0, user_item.score + increment), MAX_SCORE)
+        user_item.last_seen = timezone.now()
         user_item.save()
     return Response({"status": "success"})
 
