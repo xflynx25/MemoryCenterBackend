@@ -13,3 +13,4 @@
 
 7/6/22 
 1. we are sending password over with the view_profile
+2. Test # 5. (GLOBAL VIEWING) failing due to problems with creation by non-owner, or in places with multiple users. We need to do automatic UserItem initialization

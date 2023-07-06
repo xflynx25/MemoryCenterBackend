@@ -51,13 +51,15 @@ def user_login(request):
     user = authenticate(request, username=username, password=password)
     if user is not None:
         refresh = RefreshToken.for_user(user)
-        return Response({
+        response =  Response({
             'status': 'success',
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         })
+        return response
     else:
         return Response({"status": "failure"})
+
     
 @csrf_exempt
 @api_view(['POST'])
@@ -122,9 +124,9 @@ def has_access(obj, user, access_type):
 
 
 """
-=====
-GOOD
-=====
+====================
+FUNCTIONALITY VIEWS
+====================
 """
 
 # viewing profile
@@ -132,10 +134,7 @@ GOOD
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def view_profile(request, user_id=None):
-    if user_id is None:
-        user = request.user
-    else:
-        user = get_object_or_404(CustomUser, id=user_id)
+    user = get_user(request, user_id)
     serializer = CustomUserSerializer(user)
     return Response(serializer.data)
 
@@ -151,18 +150,19 @@ def edit_profile(request):
         return Response(serializer.data)
     return Response(serializer.errors, status=400)
 
-#-- request: {userid} or none if viewing self
+#-- request: empty
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_all_items(request, user_id=None):
-    user = get_user(request, user_id)
-    data = get_objects(user, request.user, UserItem, UserItemSerializer)
-    return Response(data)
+def get_all_items(request):
+    user_items = UserItem.objects.filter(user=request.user)
+    serializer = UserItemSerializer(user_items, many=True)
+    return Response(serializer.data)
 
 #-- request: {userid} or none if viewing self
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_all_topics(request, user_id=None):
+    print('user id is ', user_id)
     user = get_user(request, user_id)
     data = get_objects(user, request.user, TopicTable, TopicTableSerializer)
     return Response(data)
@@ -255,24 +255,32 @@ def add_items_to_topic(request):
     topic_id = request.data.get('topic_id')
     items = request.data.get('items')
 
+    print(f"Request to add items to topic: {topic_id}")
 
     # Fetch the topic
     topic = get_object_or_404(TopicTable, id=topic_id)
 
     # Check if the user has access
     if not has_access(topic, request.user, 'edit'):
+        print(f"User {request.user} does not have edit access to topic {topic_id}")
         return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
-    
+
     for item in items:
         try:
             front, back = item
         except: 
             return Response({"error": "Both front and back should be provided."}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         item_instance = ItemTable.objects.create(topic=topic, front=front, back=back)
         UserItem.objects.create(item=item_instance, user=request.user)
 
+        print(f"Added item with front {front}, back {back} to topic {topic_id} for user {request.user}")
+
+    user_items = UserItem.objects.filter(user=request.user).values()
+    print(f"Current UserItems for user {request.user}: {user_items}")
+
     return Response({"status": "success"}, status=status.HTTP_200_OK)
+
 
 
 # very similar to edit_topics_in_collection, delete, update
@@ -354,3 +362,57 @@ def update_n_items_user(request):
         user_item.save()
     return Response({"status": "success"})
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def edit_topic_info(request):
+    topic_id = request.data.get('topic_id')
+    edits = request.data.get('edits')
+
+    # Ensure topic exists and belongs to the authenticated user
+    topic = get_object_or_404(TopicTable, id=topic_id, user=request.user)
+
+    # Ensure user has edit access
+    if not has_access(topic, request.user, 'edit'):
+        return Response({'detail': 'Not enough permissions'}, status=403)
+        
+    # Edit fields
+    if 'visibility' in edits:
+        topic.visibility = edits['visibility']
+    if 'description' in edits:
+        topic.description = edits['description']
+    if 'topic_name' in edits:
+        topic.topic_name = edits['topic_name']
+
+    topic.save()
+
+    # Serialize and return updated topic
+    serializer = TopicTableSerializer(topic)
+    return Response(serializer.data, status=200)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def edit_collection_info(request):
+    collection_id = request.data.get('collection_id')
+    edits = request.data.get('edits')
+
+    # Ensure collection exists and belongs to the authenticated user
+    collection = get_object_or_404(CollectionTable, id=collection_id, user=request.user)
+
+    # Ensure user has edit access
+    if not has_access(collection, request.user, 'edit'):
+        return Response({'detail': 'Not enough permissions'}, status=403)
+
+    # Edit fields
+    if 'visibility' in edits:
+        collection.visibility = edits['visibility']
+    if 'description' in edits:
+        collection.description = edits['description']
+    if 'collection_name' in edits:
+        collection.collection_name = edits['collection_name']
+
+    collection.save()
+
+    # Serialize and return updated collection
+    serializer = CollectionTableSerializer(collection)
+    return Response(serializer.data, status=200)
