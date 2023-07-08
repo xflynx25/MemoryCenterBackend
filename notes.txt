@@ -14,3 +14,7 @@
 7/6/22 
 1. we are sending password over with the view_profile
 2. Test # 5. (GLOBAL VIEWING) failing due to problems with creation by non-owner, or in places with multiple users. We need to do automatic UserItem initialization
+
+7/8/22
+1. get_all_items, get_all_collections which has the through link, produces redundant information, like ID repetition. 
+2. edits sometimes return status, sometimes return the item. Probably should return just status for all, maybe not, bcz this allows us to use server for updates. 

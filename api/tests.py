@@ -218,6 +218,7 @@ class FlashcardsTestCase(TestCase):
         for item in response.json():
             self.assertLess(min_fetches - 1, item['score']) 
         print('final score list = ', response.json()) # just for visualis
+
         print_success("studying")
 
 
