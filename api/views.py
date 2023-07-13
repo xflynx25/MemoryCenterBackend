@@ -20,7 +20,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from .models import CustomUser, TopicTable, CollectionTable, CollectionTopic, ItemTable, UserItem
+from .models import CustomUser, TopicTable, CollectionTable, CollectionTopic, ItemTable, UserItem, TopicItem
 from .serializers import CustomUserSerializer, UserItemSerializer, ItemTableSerializer, CollectionTableSerializer, CollectionTopicSerializer, TopicTableSerializer
 
 
@@ -84,11 +84,29 @@ def user_register(request):
             }, 
             status=201
         )
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def home(request):
-    return view_profile(request)
+def get_all_users(request):
+    this_user = CustomUser.objects.filter(id=request.user.id)
+    other_users = CustomUser.objects.exclude(id=request.user.id)
+    
+    # Retrieve and serialize this user
+    serializer_this = CustomUserSerializer(this_user, many=True)
+    this_user_data = serializer_this.data[0] if serializer_this.data else {}
+    
+    # Retrieve and serialize other users
+    serializer_others = CustomUserSerializer(other_users, many=True)
+    other_users_data = serializer_others.data
+    
+    # Combine the data
+    all_users_data = [this_user_data] + other_users_data
+    
+    response_data = {'all_users': all_users_data}
+    
+    print('Returning from get_all_users', response_data)
+    return Response(response_data)
+
+
 
 
 
@@ -153,27 +171,74 @@ def edit_profile(request):
 #-- request: empty
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_all_items(request):
+def get_all_items(request, topic_id = None):
     user_items = UserItem.objects.filter(user=request.user)
     serializer = UserItemSerializer(user_items, many=True)
     return Response(serializer.data)
+
+    # need to implement for the topic_ids, and also clarify the api back to the front end. Probably still return same thing, and just parse it front. 
+    # but problem with this is it is returning the scores of everyone using the card...no good. So you want to actually always only get your scores:
+    # so maybe i should also implement for a particular user id 
+    # RESPONSE: 200 - Lo {'id': I, 'last_seen': DT, 'score': I, 'front': S, 'back':S, 'users': LoI} 
+
+    # it is actually such a mess, because sometimes I might want items for everybody, or sometimes I am asking for your scores. 
+    # so maybe this should be closer to fetch_n_from_profile 
+    # and then a seperate thing for the display. 
+    # because that's what I wanted originally, you just have the display at first, and then you can go into edit mode. 
+    # but i can't just pull all items, bcz it could be a lot
+    # so we are at a design crossroads. 
 
 #-- request: {userid} or none if viewing self
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_all_topics(request, user_id=None):
-    print('user id is ', user_id)
+    print('topics user id is ', user_id)
     user = get_user(request, user_id)
     data = get_objects(user, request.user, TopicTable, TopicTableSerializer)
+    print('topics data is ', data)
     return Response(data)
 
 #-- request: {userid} or none if viewing self
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_all_collections(request, user_id=None):
+    print('collections user id is ', user_id)
     user = get_user(request, user_id)
     data = get_objects(user, request.user, CollectionTable, CollectionTableSerializer)
+    print('collections data is ', data)
     return Response(data)
+
+
+"""-------------------"""
+"""CUURENTLY NOT USING"""
+"""-------------------"""
+#-- request: {userid} or none if viewing self
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_subtopics_collection(request, collection_id):
+    user = request.user
+    data = get_objects(user, request.user, CollectionTable, CollectionTableSerializer)
+    #user_items = UserItem.objects.filter(user=request.user)
+    pass
+
+#-- request: {userid} or none if viewing self
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_subitems_topic(request, collection_id):
+    pass
+
+#-- request: {userid} or none if viewing self
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_subusers_item(request, collection_id):
+    pass
+
+"""-------------------"""
+"""CUURENTLY NOT USING END"""
+"""-------------------"""
+
+
+
 
 #-- request: req {collection_name} optional {description, visibility}
 @api_view(['POST'])
@@ -271,8 +336,9 @@ def add_items_to_topic(request):
         except: 
             return Response({"error": "Both front and back should be provided."}, status=status.HTTP_400_BAD_REQUEST)
 
-        item_instance = ItemTable.objects.create(topic=topic, front=front, back=back)
+        item_instance = ItemTable.objects.create(front=front, back=back)
         UserItem.objects.create(item=item_instance, user=request.user)
+        TopicItem.objects.create(item=item_instance, topic=topic)
 
         print(f"Added item with front {front}, back {back} to topic {topic_id} for user {request.user}")
 
@@ -282,7 +348,7 @@ def add_items_to_topic(request):
     return Response({"status": "success"}, status=status.HTTP_200_OK)
 
 
-
+#NOT TESTED
 # very similar to edit_topics_in_collection, delete, update
 # Delete or updating items from a topic, used to just be deletion so need to change
 # FUNCTION: delete all items, this should be as simple as deleting from ItemTable since it will cascade.
@@ -294,16 +360,16 @@ def edit_items_in_topic(request):
     item_edits = request.data.get('item_edits')
 
     # Fetch the topic
-    topic = get_object_or_404(TopicTable, id=topic_id)#current db implementation stores items independently so ez to look up
+    topic = get_object_or_404(TopicTable, id=topic_id) #current db implementation stores items independently so ez to look up
 
+    # Check if the user has access
+    if not has_access(item.topic, request.user, 'edit'):
+        return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+    
     for item_edit in item_edits:
         item_id = item_edit.get('id')
         action = item_edit.get('what')
         item = get_object_or_404(ItemTable, id=item_id)
-
-        # Check if the user has access
-        if not has_access(item.topic, request.user, 'edit'):
-            return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
 
         if action == 'delete':
             item.delete()
@@ -317,6 +383,54 @@ def edit_items_in_topic(request):
                 item_instance = item_serializer.save()
 
     return Response({"status": "success"}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def edit_items_in_topic_full(request):
+    request_data = request.data
+    topic_id = request_data.get('topic_id')
+    final_items = request_data.get('items')
+
+    # Fetch the topic
+    topic = get_object_or_404(TopicTable, id=topic_id)
+
+    # Check if the user has access
+    if not has_access(topic, request.user, 'edit'):
+        return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    # Get the current items for the topic
+    current_item_ids = set(TopicItem.objects.filter(topic=topic).values_list('item__id', flat=True))
+
+    # For each item in final_items, check if it's an addition or an update
+    new_item_ids = set()
+    for item in final_items:
+        id = item.get('id')
+        front = item.get('front')
+        back = item.get('back')
+
+        # Ignore items where both front and back are blank
+        if not (front or back):
+            continue
+
+        if id == -1:  # New item to be added
+            item_instance = ItemTable.objects.create(front=front, back=back)
+            UserItem.objects.create(item=item_instance, user=request.user)
+            TopicItem.objects.create(item=item_instance, topic=topic)
+            new_item_ids.add(item_instance.id)
+        else:  # Existing item to be updated
+            existing_item = ItemTable.objects.filter(id=id).first()  # Avoid DoesNotExist exception
+            if existing_item is not None:
+                existing_item.front = front
+                existing_item.back = back
+                existing_item.save()
+                new_item_ids.add(id)
+
+    # For deletions, delete the item from ItemTable (also removes UserItem and TopicItem entries due to cascade)
+    for item_id in current_item_ids - new_item_ids:  # IDs present in current items but not in new items
+        ItemTable.objects.filter(id=item_id).delete()
+
+    return Response({"status": "success"}, status=status.HTTP_200_OK)
+
 
 
 # Fetch the score, front, and back from the least recent n items in the collection, 
@@ -337,8 +451,9 @@ def fetch_n_from_collection(request):
 
     user_items = UserItem.objects.filter(
         user=user,
-        item__topic__in=topics_in_collection
+        item__topics__in=topics_in_collection
     ).select_related('item').order_by('last_seen')[:n]
+
 
     # logic having to do with the nonlinearity of the higher levels 
 

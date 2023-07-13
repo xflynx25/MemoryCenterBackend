@@ -3,14 +3,15 @@ from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 #from django.contrib.auth.models import User
 
-from .models import CustomUser,TopicTable,CollectionTable,CollectionTopic,ItemTable,UserItem
+from .models import CustomUser,TopicTable,CollectionTable,CollectionTopic,ItemTable,UserItem,TopicItem
 
 
 class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'password', 'realname', 'description', 'awards']
+        fields = ['id', 'username', 'realname', 'description', 'awards']#, 'items']
 
+    """
     def create(self, validated_data):
         password = validated_data.pop('password', None)
         instance = self.Meta.model(**validated_data)
@@ -19,6 +20,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
             instance.password = hashed_password
         instance.save()
         return instance
+    """
     
     # we see, that updates have default value to their selected value, if only a partial is passed in. 
     def update(self, instance, validated_data):
@@ -34,11 +36,23 @@ class CustomUserSerializer(serializers.ModelSerializer):
         return rep
 
 
+class ItemTableSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ItemTable
+        fields = ['id', 'front', 'back', 'users', 'topics']
+
+
+class UserItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserItem
+        fields = ['id', 'item', 'user', 'last_seen', 'score']
 
 class TopicTableSerializer(serializers.ModelSerializer):
+    items = ItemTableSerializer(many=True, read_only=True)
+
     class Meta:
         model = TopicTable
-        fields = ['id', 'user', 'topic_name', 'description', 'visibility']
+        fields = ['id', 'user', 'topic_name', 'description', 'visibility', 'items', 'collections'] 
 
 
 class CollectionTopicSerializer(serializers.ModelSerializer):
@@ -48,23 +62,16 @@ class CollectionTopicSerializer(serializers.ModelSerializer):
 
 
 class CollectionTableSerializer(serializers.ModelSerializer):
-    topics = TopicTableSerializer(many=True, read_only=True)
+    topics = TopicTableSerializer(many=True, read_only=True) #maybe will chnage this rather to collectiontopic
 
     class Meta:
         model = CollectionTable
         fields = ['id', 'user', 'collection_name', 'description', 'visibility', 'topics']
 
 
-class ItemTableSerializer(serializers.ModelSerializer):
+        
+class TopicItemSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ItemTable
-        fields = ['id', 'topic', 'front', 'back', 'users']
-
-
-class UserItemSerializer(serializers.ModelSerializer):
-    item = ItemTableSerializer(read_only=True)
-
-    class Meta:
-        model = UserItem
-        fields = ['id', 'item', 'user', 'last_seen', 'score']
+        model = TopicItem
+        fields = ['id', 'item', 'topic', 'genre']
 

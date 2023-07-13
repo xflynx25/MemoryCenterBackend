@@ -7,8 +7,8 @@ when combining, such as optional string = OP.S(description)
 # # # authentication # # #
 ==========================
 ENDPOINT: login/
-REQUEST: POST - {'username': REQ, 'password': REQ}
-RESPONSE: 200 - {'status': 'success'/'failure'} + if_success {'refresh': (refresh_endpoint), 'access': (token)}
+REQUEST: POST - {"username": REQ, "password": REQ}
+RESPONSE: 200 - {"status": "success"/"failure"} + if_success {"refresh": (refresh_endpoint), "access": (token)}
 
 ENDPOINT: register/
 NOTES: equivalent to login/ but with 201 success msg
@@ -17,28 +17,33 @@ ENDPOINT: token/
 NOTES: currently unused 
 
 ENDPOINT: token/refresh/
-REQUEST: POST - {'refresh': REQ(refresh_endpoint)}
-RESPONSE: 200 - {'access': (token)} or *400 someErrorMsg*
+REQUEST: POST - {"refresh": REQ(refresh_endpoint)}
+RESPONSE: 200 - {"access": (token)} or *400 someErrorMsg*
 
 ==========================
 # # # browsing self  # # #
 ==========================
 ENDPOINT: view_profile/
 REQUEST: GET
-RESPONSE: 200 - {'id': I, 'username': S, 'password': S, 'realname': DP.S, 'description': DP.S, 'awards': DP.L}
+RESPONSE: 200 - {"id": I, "username": S, "realname": DP.S, "description": DP.S, "awards": DP.L}
 
 ENDPOINT: get_all_items/
 REQUEST: GET
-RESPONSE: 200 - Lo {'id': I, 'user': I, 'last_seen': DT, 'score': I, 'item': {'id': I, 'topic': I, 'front': S, 'back':S, 'users': LoI} }
+RESPONSE: 200 - Lo {"id": I, "user": I, "last_seen": DT, "score": I, "item": {"id": I, "topic": I, "front": S, "back":S, "users": LoI} }
+NOTES: Lo means list of these dicts
+
+ENDPOINT: get_all_items/<int:topic_id>/
+REQUEST: GET
+RESPONSE: 200 - Lo {"id": I, "last_seen": DT, "score": I, "front": S, "back":S, "users": LoI} 
 NOTES: Lo means list of these dicts
 
 ENDPOINT: get_all_topics/
 REQUEST: GET
-RESPONSE: 200 - Lo {'id': I, 'user': I, 'topic_name': S, 'description': DP.S, 'visibility': S}
+RESPONSE: 200 - Lo {"id": I, "user": I, "topic_name": S, "description": DP.S, "visibility": S}
 
 ENDPOINT: get_all_collections/
 REQUEST: GET
-RESPONSE: 200 - Lo {'id': I, 'user': I, 'collection_name': S, 'description': DP.S, 'visibility': S, 'topics': Lo {'id': I, 'user': I, 'topic_name': S, 'description': DP.S, 'visibility': S}}
+RESPONSE: 200 - Lo {"id": I, "user": I, "collection_name": S, "description": DP.S, "visibility": S, "topics": Lo {"id": I, "user": I, "topic_name": S, "description": DP.S, "visibility": S}}
 
 ============================
 # # # browsing others  # # #
@@ -52,55 +57,61 @@ ENDPOINT: get_all_collections/<int:user_id>/
 # # # creating data  # # #
 ==========================
 ENDPOINT: create_collection/
-REQUEST: POST - {'collection_name': REQ.S, 'description': OP.S, 'visibility': OP.S ('private'/'global_view'/'global_edit') }
+REQUEST: POST - {"collection_name": REQ.S, "description": OP.S, "visibility": OP.S ("private"/"global_view"/"global_edit") }
 RESPONSE: same as get_all_collections response, but only a single dict, rather than list of dicts. Topics will be empty list.
 
 ENDPOINT: create_topic/
-REQUEST: POST - {'topic_name': REQ.S, 'description': OP.S, 'visibility': OP.S ('private'/'global_view'/'global_edit') }
+REQUEST: POST - {"topic_name": REQ.S, "description": OP.S, "visibility": OP.S ("private"/"global_view"/"global_edit") }
 RESPONSE: same as get_all_topics response, but only a single dict, rather than list of dicts
 
 ENDPOINT: edit_topics_in_collection/
-REQUEST: POST - {'collection_id': REQ.I, 'topic_edits': REQ.LoLo( I(topic_id), S('add'/'delete'/'update') ) }
-RESPONSE: 200 - {'status': 'success'/'failure'}
+REQUEST: POST - {"collection_id": REQ.I, "topic_edits": REQ.LoLo( I(topic_id), S("add"/"delete"/"update") ) }
+RESPONSE: 200 - {"status": "success"/"failure"}
 NOTES: topic edits is depth-2 list of topic change pairs. i.e. {collection_id, topic_edits -> [[topic_id, what], [topic_id, what], ...]}
 
 ENDPOINT: add_items_to_topic/
-REQUEST: POST - {'topic_id': REQ.I, 'items': REQ.LoLo( S(front), S(back) ) }
-RESPONSE: 200 - {'status': 'success'/'failure'}
+REQUEST: POST - {"topic_id": REQ.I, "items": REQ.LoLo( S(front), S(back) ) }
+RESPONSE: 200 - {"status": "success"/"failure"}
 
 ENDPOINT: edit_items_in_topic/
-REQUEST: POST - {'topic_id': REQ.I, 'item_edits': REQ.Lo {'id': I(item_id), 'what': S('add'/'delete'/'update'), 'front': S, 'back': S} }
-RESPONSE: 200 - {'status': 'success'/'failure'}
+REQUEST: POST - {"topic_id": REQ.I, "item_edits": REQ.Lo {"id": I(item_id), "what": S("add"/"delete"/"update"), "front": S, "back": S} }
+RESPONSE: 200 - {"status": "success"/"failure"}
+
+ENDPOINT: edit_items_in_topic_full/
+REQUEST: POST - {"topic_id": REQ.I, "items": REQ.Lo {"id": I(item_id), "front": S, "back": S} }
+RESPONSE: 200 - {"status": "success"/"failure"}
+NOTES: item_id will be -1 if it is a new item. Therefore, we can distinguish edits from deletion+add 
 
 ===========================
 # # # metadata edits  # # #
 ===========================
 ENDPOINT: edit_profile/
-REQUEST: POST - {'realname': OP.S, 'description': OP.S, 'awards': OP.LoS}
+REQUEST: POST - {"realname": OP.S, "description": OP.S, "awards": OP.LoS}
 RESPONSE: same as view_profile, with errors if data was rejected
 
 ENDPOINT: edit_topic_info/
-REQUEST: POST - {'topic_id': REQ.I, 'edits': REQ {'visibility': OP.S, description': OP.S, topic_name': OP.S'} } 
+REQUEST: POST - {"topic_id": REQ.I, "edits": REQ {"visibility": OP.S, description": OP.S, topic_name": OP.S"} } 
 RESPONSE: same as create_topic
 
 ENDPOINT: edit_collection_info/
-REQUEST: POST - {'collection_id': REQ.I, 'edits': REQ {'visibility': OP.S, description': OP.S, collection_name': OP.S'} } 
+REQUEST: POST - {"collection_id": REQ.I, "edits": REQ {"visibility": OP.S, description": OP.S, collection_name": OP.S"} } 
 RESPONSE: same as create_collection
 
 =======================
 # # # study mode  # # #
 =======================
 ENDPOINT: fetch_n_from_collection/
-REQUEST: POST - {'collection_id': REQ.I, 'n': REQ.I}
-RESPONSE: 200 - Lo {'id': 4, 'item': {'id': I, 'topic': I, 'front': S, 'back': S, 'users': LoI}, 'user': I, 'last_seen': DT, 'score': I}
+REQUEST: POST - {"collection_id": REQ.I, "n": REQ.I}
+RESPONSE: 200 - Lo {"id": 4, "item": {"id": I, "topic": I, "front": S, "back": S, "users": LoI}, "user": I, "last_seen": DT, "score": I}
 
 ENDPOINT: update_n_items_user/
-REQUEST: POST - {'items': REQ.Lo {'item_id': I, 'increment': I(1 or -1)} }
-RESPONSE: 200 - {'status': 'success'/'failure'}
+REQUEST: POST - {"items": REQ.Lo {"item_id": I, "increment": I(1 or -1)} }
+RESPONSE: 200 - {"status": "success"/"failure"}
 
-==========================
-# # # home page ? ?  # # #
-==========================
-(DEPRECATED) ENDPOINT: home/ 
+=================
+# # # MISC  # # #
+=================
+ENDPOINT: get_all_users/
 REQUEST: GET
-RESPONSE: some profile info
+RESPONSE: 200 - {"all_users": Lo {"id": I, "username": S, "realname": DP.S, "description": DP.S, "awards": DP.LoS} }
+NOTES: the first item will be the requesting user, rest will be in random order, likely by id 
