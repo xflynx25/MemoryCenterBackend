@@ -495,6 +495,7 @@ def edit_topics_in_collection_full(request):
     request_data = request.data
     collection_id = request_data.get('collection_id')
     final_topics = request_data.get('topics')
+    print('the inside data is ', collection_id, final_topics)
 
     # Fetch the collection
     collection = get_object_or_404(CollectionTable, id=collection_id)
@@ -528,20 +529,20 @@ def edit_topics_in_collection_full(request):
             )
             if not created:
                 # Update is_active field
-                collection_topic.is_active = status != 'active'
+                collection_topic.is_active = status == 'active'
                 collection_topic.save()
         else:
             # Delete the CollectionTopic instance if it exists
             CollectionTopic.objects.filter(collection=collection, topic=topic).delete()
 
-    # Delete CollectionTopic instances not in final_topics ALTERNATIVE IMPLEMENTATION WHERE WE DON'T NEED TO WRITE THE NOT_SELECTED
-    #CollectionTopic.objects.filter(
-    #    collection=collection
-    #).exclude(
-    #    topic_id__in=[topic.get('topic_id') for topic in final_topics]
-    #).delete()
+    #Delete CollectionTopic instances not in final_topics # ALTERNATIVE IMPLEMENTATION NEEDED AKA PASS IN not_selected IF WE WANT GLOBALS TO WORK
+    CollectionTopic.objects.filter(
+        collection=collection
+    ).exclude(
+        topic_id__in=[topic.get('topic_id') for topic in final_topics]
+    ).delete()
 
-    return Response({"status": "success"}, status=status.HTTP_200_OK)
+    return Response({"status": "success"})
 
 
 # Fetch the score, front, and back from the least recent n items in the collection, 
