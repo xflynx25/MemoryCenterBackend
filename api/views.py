@@ -210,7 +210,7 @@ def get_all_collections(request, user_id=None):
 
 
 """-------------------"""
-"""CUURENTLY NOT USING"""
+"""CUURENTLY NOT USING SOME"""
 """-------------------"""
 #-- request: {userid} or none if viewing self
 @api_view(['GET'])
@@ -221,11 +221,25 @@ def get_subtopics_collection(request, collection_id):
     #user_items = UserItem.objects.filter(user=request.user)
     pass
 
-#-- request: {userid} or none if viewing self
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_subitems_topic(request, collection_id):
-    pass
+def get_topic_items(request, topic_id):
+    # Fetch the topic
+    topic = get_object_or_404(TopicTable, id=topic_id)
+
+    # Check if the user has access
+    if not has_access(topic, request.user, 'view'):
+        return Response({"error": "Unauthorized topic items access"}, status=401)
+
+    # Fetch the items related to the topic
+    topic_items = TopicItem.objects.filter(topic=topic)
+
+    # Serialize the items
+    item_list = [ItemTableSerializer(item.item).data for item in topic_items]
+
+    return JsonResponse({"items": item_list})
+
 
 #-- request: {userid} or none if viewing self
 @api_view(['GET'])
@@ -233,9 +247,49 @@ def get_subitems_topic(request, collection_id):
 def get_subusers_item(request, collection_id):
     pass
 
+
+
 """-------------------"""
 """CUURENTLY NOT USING END"""
 """-------------------"""
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def delete_collection(request):
+    collection_id = request.data.get('collection_id')
+
+    if not collection_id:
+        return Response({"error": "No collection id provided"}, status=400)
+
+    # Fetch the collection
+    collection = get_object_or_404(CollectionTable, id=collection_id)
+
+    # Check if the user has access
+    if not has_access(collection, request.user, 'edit'):
+        return Response({"error": "Unauthorized Collection"}, status=401)
+    
+    collection.delete()
+
+    return Response({"success": "Collection deleted successfully"}, status=200)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def delete_topic(request):
+    topic_id = request.data.get('topic_id')
+    if not topic_id:
+        return Response({"error": "No topic id provided"}, status=400)
+
+    # Fetch the collection
+    topic = get_object_or_404(TopicTable, id=topic_id)
+
+    # Check if the user has access
+    if not has_access(topic, request.user, 'edit'):
+        return Response({"error": "Unauthorized Topic"}, status=401)
+
+    topic.delete()
+
+    return Response({"success": "Topic deleted successfully"}, status=200)
+
 
 
 
@@ -390,6 +444,8 @@ def edit_items_in_topic_full(request):
     request_data = request.data
     topic_id = request_data.get('topic_id')
     final_items = request_data.get('items')
+
+    print('hi', request_data,topic_id,final_items)
 
     # Fetch the topic
     topic = get_object_or_404(TopicTable, id=topic_id)

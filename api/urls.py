@@ -14,7 +14,7 @@ urlpatterns = [
     path('view_profile/', views.view_profile, name='view_profile'), #for self
     path('edit_profile/', views.edit_profile, name='edit_profile'), #for self
     path('get_all_items/', views.get_all_items, name='get_all_items'), #for self
-    path('get_all_items/<int:topic_id>/', views.get_all_items, name='get_all_items'), 
+    path('get_all_items/<int:topic_id>/', views.get_all_items, name='get_all_items'),  #maybe not using? 
     path('get_all_topics/', views.get_all_topics, name='get_all_topics'), #for self
     path('get_all_collections/', views.get_all_collections, name='get_all_collections'), #for self
 
@@ -25,9 +25,12 @@ urlpatterns = [
 
     # subobject requests
     #path('get_subusers_item/', views.get_subusers_item, name='get_subusers_item'),
-    #path('get_subitems_topic/', views.get_subitems_topic, name='get_subitems_topic'),
+    path('get_topic_items/<int:topic_id>/', views.get_topic_items, name='get_topic_items'),
     #path('get_subtopics_collection/', views.get_subtopics_collection, name='get_subtopics_collection'),
 
+    # deletion mode
+    path('delete_collection/', views.delete_collection, name='delete_collection'),
+    path('delete_topic/', views.delete_topic, name='delete_topic'),
 
     # creation-mode
     path('create_collection/', views.create_collection, name='create_collection'),
