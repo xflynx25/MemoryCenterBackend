@@ -56,13 +56,19 @@ class TopicTableSerializer(serializers.ModelSerializer):
 
 
 class CollectionTopicSerializer(serializers.ModelSerializer):
+    topic_name = serializers.SerializerMethodField()
+
     class Meta:
         model = CollectionTopic
-        fields = ['id', 'collection', 'topic', 'is_active']
+        fields = ['id', 'collection', 'topic', 'is_active', 'topic_name']
+
+    def get_topic_name(self, obj):
+        return obj.topic.topic_name
+
 
 
 class CollectionTableSerializer(serializers.ModelSerializer):
-    topics = TopicTableSerializer(many=True, read_only=True) #maybe will chnage this rather to collectiontopic
+    topics = CollectionTopicSerializer(source='collectiontopic_set', many=True, read_only=True)
 
     class Meta:
         model = CollectionTable

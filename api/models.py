@@ -48,7 +48,7 @@ class CollectionTable(models.Model):
     topics = models.ManyToManyField(TopicTable, through='CollectionTopic', blank=True, related_name='collections')
 
 class CollectionTopic(models.Model):
-    collection = models.ForeignKey(CollectionTable, on_delete=models.CASCADE)
-    topic = models.ForeignKey(TopicTable, on_delete=models.CASCADE)
+    collection = models.ForeignKey(CollectionTable, related_name='collectiontopic_set', on_delete=models.CASCADE)
+    topic = models.ForeignKey(TopicTable, on_delete=models.PROTECT)
     is_active = models.BooleanField(default=False)
 

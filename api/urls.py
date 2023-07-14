@@ -40,6 +40,9 @@ urlpatterns = [
     path('edit_items_in_topic/', views.edit_items_in_topic, name='edit_items_in_topic'), 
     path('edit_items_in_topic_full/', views.edit_items_in_topic_full, name='edit_items_in_topic_full'), # just puts in what the data should be. 
 
+
+    path('edit_topics_in_collection_full/', views.edit_topics_in_collection_full, name='edit_topics_in_collection_full'),
+    
     # change visibility, description, or <collection/topic>_name
     path('edit_topic_info/', views.edit_topic_info, name='edit_topic_info'),
     path('edit_collection_info/', views.edit_collection_info, name='edit_collection_info'),

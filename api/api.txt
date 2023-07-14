@@ -69,6 +69,9 @@ REQUEST: POST - {"collection_id": REQ.I, "topic_edits": REQ.LoLo( I(topic_id), S
 RESPONSE: 200 - {"status": "success"/"failure"}
 NOTES: topic edits is depth-2 list of topic change pairs. i.e. {collection_id, topic_edits -> [[topic_id, what], [topic_id, what], ...]}
 
+ENDPOINT: edit_topics_in_collection_full/
+{"collection_id": _, "topics": [{topic_id: _, "status": _}, {...}, ... ] }
+
 ENDPOINT: add_items_to_topic/
 REQUEST: POST - {"topic_id": REQ.I, "items": REQ.LoLo( S(front), S(back) ) }
 RESPONSE: 200 - {"status": "success"/"failure"}

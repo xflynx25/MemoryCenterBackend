@@ -488,6 +488,61 @@ def edit_items_in_topic_full(request):
     return Response({"status": "success"}, status=status.HTTP_200_OK)
 
 
+# note that this works even if we don't provide the blanks, bcz they will just stay. So therefore, can be used in shared objects
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def edit_topics_in_collection_full(request):
+    request_data = request.data
+    collection_id = request_data.get('collection_id')
+    final_topics = request_data.get('topics')
+
+    # Fetch the collection
+    collection = get_object_or_404(CollectionTable, id=collection_id)
+
+    # Check if the user has access
+    if not has_access(collection, request.user, 'edit'):
+        return Response({"error": "Unauthorized collection"}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Check if the user has access
+    if collection.user != request.user:
+        return JsonResponse({"error": "Unauthorized"}, status=401)
+
+    # Iterate over final_topics to update/create CollectionTopic instances
+    for topic_data in final_topics:
+        topic_id = topic_data.get('topic_id')
+        status = topic_data.get('status')
+
+        # Fetch the topic
+        topic = get_object_or_404(TopicTable, id=topic_id)
+        
+        if not has_access(topic, request.user, 'edit'):
+            return Response({"error": "Unauthorized topic"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+
+        if status != 'not_selected':
+            # Get the CollectionTopic object or create a new one if it doesn't exist
+            collection_topic, created = CollectionTopic.objects.get_or_create(
+                collection=collection,
+                topic=topic,
+                defaults={'is_active': status == 'active'}
+            )
+            if not created:
+                # Update is_active field
+                collection_topic.is_active = status != 'active'
+                collection_topic.save()
+        else:
+            # Delete the CollectionTopic instance if it exists
+            CollectionTopic.objects.filter(collection=collection, topic=topic).delete()
+
+    # Delete CollectionTopic instances not in final_topics ALTERNATIVE IMPLEMENTATION WHERE WE DON'T NEED TO WRITE THE NOT_SELECTED
+    #CollectionTopic.objects.filter(
+    #    collection=collection
+    #).exclude(
+    #    topic_id__in=[topic.get('topic_id') for topic in final_topics]
+    #).delete()
+
+    return Response({"status": "success"}, status=status.HTTP_200_OK)
+
 
 # Fetch the score, front, and back from the least recent n items in the collection, 
 # that satisfy the property that score < WAIT_SCORE = 5
@@ -585,5 +640,5 @@ def edit_collection_info(request):
     collection.save()
 
     # Serialize and return updated collection
-    serializer = CollectionTableSerializer(collection)
+    serializer = (collection)
     return Response(serializer.data, status=200)
