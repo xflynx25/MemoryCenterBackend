@@ -200,10 +200,8 @@ def get_all_items(request, topic_id = None):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_all_topics(request, user_id=None):
-    print('topics user id is ', user_id)
     user = get_user(request, user_id)
     data = get_objects(user, request.user, TopicTable, GetTopicTableSerializer)
-    print('topics data is ', data)
     return Response(data, content_type='application/json; charset=utf-8')
 
 
@@ -211,10 +209,8 @@ def get_all_topics(request, user_id=None):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_all_collections(request, user_id=None):
-    print('collections user id is ', user_id)
     user = get_user(request, user_id)
     data = get_objects(user, request.user, CollectionTable, CollectionTableSerializer)
-    print('collections data is ', data)
     return Response(data, content_type='application/json; charset=utf-8')
 
 
@@ -458,8 +454,6 @@ def edit_items_in_topic_full(request):
     topic_id = request_data.get('topic_id')
     final_items = request_data.get('items')
 
-    print('hi', request_data,topic_id,final_items)
-
     # Fetch the topic
     topic = get_object_or_404(TopicTable, id=topic_id)
 
@@ -605,7 +599,7 @@ def fetch_n_from_collection(request):
     user_items = sorted(user_items, key=lambda ui: ui.last_seen)[:n]
 
     serializer = UserItemSerializer(user_items, many=True)
-    print(serializer.data)
+    #print(serializer.data)
     return Response(serializer.data, content_type='application/json; charset=utf-8')
 
 
@@ -623,7 +617,8 @@ def update_n_items_user(request):
     for item_data in items_data:
         item_id = item_data.get("item_id")
         increment = item_data.get("increment")
-        increment = min(max(1, increment), -1) # don't allow the double trouble on the backend side
+        print(item_id, increment)
+        increment = max(min(1, increment), -1) # don't allow the double trouble on the backend side
         user_item = get_object_or_404(UserItem, id=item_id, user=request.user)
         # top level:
         if user_item.score == MAX_SCORE and increment < 0: 
