@@ -42,10 +42,36 @@ class ItemTableSerializer(serializers.ModelSerializer):
         fields = ['id', 'front', 'back', 'users', 'topics']
 
 
+#class UserItemSerializer(serializers.ModelSerializer):
+#   items = ItemTableSerializer(many=True, read_only=True)
+#    class Meta:
+#        model = UserItem
+#        fields = ['id', 'item', 'user', 'last_seen', 'score']
+
 class UserItemSerializer(serializers.ModelSerializer):
+    front = serializers.SerializerMethodField()
+    back = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    
+    
     class Meta:
         model = UserItem
-        fields = ['id', 'item', 'user', 'last_seen', 'score']
+        fields = ['id', 'user', 'last_seen', 'score', 'front', 'back']
+
+    def get_front(self, obj):
+        return obj.item.front
+
+    def get_back(self, obj):
+        return obj.item.back
+
+    # takes care of the weird level property we have. 
+    def get_score(self, obj):
+        MAX_SCORE_BACKEND = 8 #int(os.getenv('MAX_SCORE_BACKEND'))
+        MAX_SCORE_CLIENT = 4 #int(os.getenv('MAX_SCORE_CLIENT'))
+        score = obj.score
+        return (MAX_SCORE_CLIENT + 1 if score == MAX_SCORE_BACKEND else min(score, MAX_SCORE_CLIENT))
+
+
 
 class TopicTableSerializer(serializers.ModelSerializer):
     items = ItemTableSerializer(many=True, read_only=True)
@@ -81,3 +107,27 @@ class TopicItemSerializer(serializers.ModelSerializer):
         model = TopicItem
         fields = ['id', 'item', 'topic', 'genre']
 
+
+
+class GetTopicTableItemSerializer(serializers.ModelSerializer):
+    score = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ItemTable
+        fields = ['id', 'front', 'back', 'score']
+
+    def get_score(self, obj):
+        user_item = UserItem.objects.filter(user=self.context['request'], item=obj).first()
+        MAX_SCORE_BACKEND = 8 #int(os.getenv('MAX_SCORE_BACKEND'))
+        MAX_SCORE_CLIENT = 4 #int(os.getenv('MAX_SCORE_CLIENT'))
+        score = user_item.score
+        return (MAX_SCORE_CLIENT + 1 if score == MAX_SCORE_BACKEND else min(score, MAX_SCORE_CLIENT))
+
+
+
+class GetTopicTableSerializer(serializers.ModelSerializer):
+    items = GetTopicTableItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = TopicTable
+        fields = ['id', 'user', 'topic_name', 'description', 'visibility', 'items', 'collections']

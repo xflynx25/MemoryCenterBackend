@@ -21,7 +21,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from .models import CustomUser, TopicTable, CollectionTable, CollectionTopic, ItemTable, UserItem, TopicItem
-from .serializers import CustomUserSerializer, UserItemSerializer, ItemTableSerializer, CollectionTableSerializer, CollectionTopicSerializer, TopicTableSerializer
+from .serializers import CustomUserSerializer, UserItemSerializer, ItemTableSerializer, CollectionTableSerializer,\
+      CollectionTopicSerializer, TopicTableSerializer, GetTopicTableSerializer
+      
+from datetime import datetime, timedelta
+from django.utils import timezone
 
 
 # in debug we import the sensitive views, otherwise none
@@ -127,7 +131,11 @@ def get_objects(user, request_user, model, serializer):
         objects = model.objects.filter(user=user)
     else:
         objects = model.objects.filter(Q(user=user) & (Q(visibility='global_edit') | Q(visibility='global_view')))
-    return serializer(objects, many=True).data
+    
+    # Get the data with the request in the context to access it in the serializer
+    return serializer(objects, many=True, context={'request': request_user}).data
+
+
 
 # does user have access_type ('view' or 'edit') to object (obj)
 # later can extend for friends
@@ -174,7 +182,7 @@ def edit_profile(request):
 def get_all_items(request, topic_id = None):
     user_items = UserItem.objects.filter(user=request.user)
     serializer = UserItemSerializer(user_items, many=True)
-    return Response(serializer.data)
+    return Response(serializer.data, content_type='application/json; charset=utf-8')
 
     # need to implement for the topic_ids, and also clarify the api back to the front end. Probably still return same thing, and just parse it front. 
     # but problem with this is it is returning the scores of everyone using the card...no good. So you want to actually always only get your scores:
@@ -194,9 +202,10 @@ def get_all_items(request, topic_id = None):
 def get_all_topics(request, user_id=None):
     print('topics user id is ', user_id)
     user = get_user(request, user_id)
-    data = get_objects(user, request.user, TopicTable, TopicTableSerializer)
+    data = get_objects(user, request.user, TopicTable, GetTopicTableSerializer)
     print('topics data is ', data)
-    return Response(data)
+    return Response(data, content_type='application/json; charset=utf-8')
+
 
 #-- request: {userid} or none if viewing self
 @api_view(['GET'])
@@ -206,7 +215,7 @@ def get_all_collections(request, user_id=None):
     user = get_user(request, user_id)
     data = get_objects(user, request.user, CollectionTable, CollectionTableSerializer)
     print('collections data is ', data)
-    return Response(data)
+    return Response(data, content_type='application/json; charset=utf-8')
 
 
 """-------------------"""
@@ -238,7 +247,7 @@ def get_topic_items(request, topic_id):
     # Serialize the items
     item_list = [ItemTableSerializer(item.item).data for item in topic_items]
 
-    return JsonResponse({"items": item_list})
+    return Response({"items": item_list}, content_type='application/json; charset=utf-8')
 
 
 #-- request: {userid} or none if viewing self
@@ -286,6 +295,10 @@ def delete_topic(request):
     if not has_access(topic, request.user, 'edit'):
         return Response({"error": "Unauthorized Topic"}, status=401)
 
+    # First, delete all CollectionTopic instances associated with the topic
+    CollectionTopic.objects.filter(topic=topic).delete()
+
+    # Then, delete the topic itself
     topic.delete()
 
     return Response({"success": "Topic deleted successfully"}, status=200)
@@ -559,32 +572,67 @@ def fetch_n_from_collection(request):
     if not has_access(collection, user, 'view'):
         return Response({"error": "Unauthorized"}, status=401)
 
-    topics_in_collection = collection.topics.all()
+    # Get only active topics
+    collection_topics = collection.collectiontopic_set.filter(is_active=True)
+    active_topics_in_collection = [ct.topic for ct in collection_topics]
 
+    MAX_SCORE_BACKEND = 8
+    MAX_SCORE_CLIENT = 4
+    LEVEL_A_TIME_FREQUENCY = timedelta(days=7)
+    LEVEL_B_TIME_FREQUENCY = timedelta(minutes=30)
+
+    # Fetch all eligible user items
     user_items = UserItem.objects.filter(
         user=user,
-        item__topics__in=topics_in_collection
-    ).select_related('item').order_by('last_seen')[:n]
+        item__topics__in=active_topics_in_collection,
+    ).select_related('item')
 
+    # Apply score and time-based filtering
+    user_items = [
+        user_item for user_item in user_items
+        if (
+            (user_item.score == MAX_SCORE_BACKEND and timezone.now() - user_item.last_seen >= LEVEL_A_TIME_FREQUENCY) or
+            (MAX_SCORE_CLIENT <= user_item.score < MAX_SCORE_BACKEND and timezone.now() - user_item.last_seen >= LEVEL_B_TIME_FREQUENCY) or
+            MAX_SCORE_CLIENT > user_item.score
+        )
+    ]
 
-    # logic having to do with the nonlinearity of the higher levels 
+    # Check if there are no user items after filtering
+    if not user_items:
+        return Response({"error": "No More Items"}, status=405) # random code. 
+
+    # Sort and limit results
+    user_items = sorted(user_items, key=lambda ui: ui.last_seen)[:n]
 
     serializer = UserItemSerializer(user_items, many=True)
-    return Response(serializer.data)
+    print(serializer.data)
+    return Response(serializer.data, content_type='application/json; charset=utf-8')
 
 
 # Increments the score, unless score == MAX_SCORE
 #-- request: required {items -> {item_id, increment} where increment is 1 or -1 
+# the increment could theoretically be a different number, if the deck is small enough it is called multiple times 
+# but that is not good as it bypasses the checks. Hmm... so probably, we should only accept +1
+# it also conveniently works for the top level. Since we update the time, it stays same by overflow if we do +1, and goes down if -1. 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def update_n_items_user(request):
     MAX_SCORE = 8#int(os.getenv('MAX_SCORE'))
+    MAX_SCORE_CLIENT = 4 #int(os.getenv('MAX_SCORE_CLIENT'))
     items_data = request.data.get("items", [])
     for item_data in items_data:
         item_id = item_data.get("item_id")
         increment = item_data.get("increment")
+        increment = min(max(1, increment), -1) # don't allow the double trouble on the backend side
         user_item = get_object_or_404(UserItem, id=item_id, user=request.user)
-        user_item.score = min(max(0, user_item.score + increment), MAX_SCORE)
+        # top level:
+        if user_item.score == MAX_SCORE and increment < 0: 
+            user_item.score = MAX_SCORE_CLIENT
+        # if you fail the B level
+        elif user_item.score >= MAX_SCORE_CLIENT and increment < 0: 
+            user_item.score = MAX_SCORE_CLIENT - 1
+        else: 
+            user_item.score = min(max(0, user_item.score + increment), MAX_SCORE)
         user_item.last_seen = timezone.now()
         user_item.save()
     return Response({"status": "success"})
@@ -614,7 +662,7 @@ def edit_topic_info(request):
 
     # Serialize and return updated topic
     serializer = TopicTableSerializer(topic)
-    return Response(serializer.data, status=200)
+    return Response(serializer.data, status=200, content_type='application/json; charset=utf-8')
 
 
 @api_view(['POST'])
@@ -642,4 +690,4 @@ def edit_collection_info(request):
 
     # Serialize and return updated collection
     serializer = (collection)
-    return Response(serializer.data, status=200)
+    return Response(serializer.data, status=200, content_type='application/json; charset=utf-8')

@@ -18,3 +18,5 @@
 7/8/22
 1. get_all_items, get_all_collections which has the through link, produces redundant information, like ID repetition. 
 2. edits sometimes return status, sometimes return the item. Probably should return just status for all, maybe not, bcz this allows us to use server for updates. 
+
+
