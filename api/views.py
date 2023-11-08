@@ -60,24 +60,37 @@ def user_login(request):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         })
+        print(f'Returning from user login: {response}')
         return response
     else:
         return Response({"status": "failure"})
 
-    
+
 @csrf_exempt
 @api_view(['POST'])
 def user_register(request):
     data = request.data
     username = data.get("username")
     password = data.get("password")
+    secret_message = data.get("secret_message")  # Retrieve the secret message from the request
+    
+    # Get the list of allowed usernames from the environment variable
+    allowed_usernames = os.environ.get('ALLOWED_USERNAMES', '').split(',')
+    
+    # Retrieve the expected secret message from the environment variable
+    expected_secret_message = os.environ.get('SECRET_MESSAGE_SIGNUP', '')
+    
     if CustomUser.objects.filter(username=username).exists():
         return Response({"status": "failure", "error": "Username already exists"})
     elif not username or not password:
         return Response({"status": "failure", "error": "Empty username or password"})
+    elif username not in allowed_usernames:
+        return Response({"status": "failure", "error": "Username is not allowed"})
+    elif secret_message != expected_secret_message:  # Check the secret message
+        return Response({"status": "failure", "error": "Invalid secret message"})
     else:
         user = CustomUser.objects.create_user(username=username)
-        user.set_password(password)  # Hash the password before saving
+        user.set_password(password)
         user.save()
 
         refresh = RefreshToken.for_user(user)
@@ -85,9 +98,11 @@ def user_register(request):
             'status': 'success',
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-            }, 
+            },
             status=201
         )
+
+    
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_all_users(request):
