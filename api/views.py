@@ -70,30 +70,43 @@ def user_login(request):
 @api_view(['POST'])
 def user_register(request):
     data = request.data
+    print(f"Received data: {data}")  # Log the received data
+
     username = data.get("username")
     password = data.get("password")
     secret_message = data.get("secret_message")  # Retrieve the secret message from the request
     
+    # Log the received credentials
+    print(f"Username: {username}, Password: {password}, Secret Message: {secret_message}")
+
     # Get the list of allowed usernames from the environment variable
     allowed_usernames = os.environ.get('ALLOWED_USERNAMES', '').split(',')
     
     # Retrieve the expected secret message from the environment variable
     expected_secret_message = os.environ.get('SECRET_MESSAGE_SIGNUP', '')
     
+    # Log the environment variable values
+    print(f"Allowed Usernames: {allowed_usernames}, Expected Secret Message: {expected_secret_message}")
+
     if CustomUser.objects.filter(username=username).exists():
-        return Response({"status": "failure", "error": "Username already exists"})
+        print("Error: Username already exists")
+        return Response({"status": "failure", "error": "Username already exists"}, status=400)
     elif not username or not password:
-        return Response({"status": "failure", "error": "Empty username or password"})
+        print("Error: Empty username or password")
+        return Response({"status": "failure", "error": "Empty username or password"}, status=400)
     elif username not in allowed_usernames:
-        return Response({"status": "failure", "error": "Username is not allowed"})
+        print("Error: Username is not allowed")
+        return Response({"status": "failure", "error": "Username is not allowed"}, status=400)
     elif secret_message != expected_secret_message:  # Check the secret message
-        return Response({"status": "failure", "error": "Invalid secret message"})
+        print("Error: Invalid secret message")
+        return Response({"status": "failure", "error": "Invalid secret message"}, status=400)
     else:
         user = CustomUser.objects.create_user(username=username)
         user.set_password(password)
         user.save()
 
         refresh = RefreshToken.for_user(user)
+        print("User registered successfully")
         return Response({
             'status': 'success',
             'refresh': str(refresh),
