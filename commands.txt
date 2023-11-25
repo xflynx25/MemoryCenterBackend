@@ -7,6 +7,8 @@ python manage.py createsuperuser
 git remote add heroku https://git.heroku.com/memory-center-backend.git
 git remote -v 
 git push heroku main
+# make sure to create Procfile
+heroku ps:scale web=1 -a memory-center-backend // manual dyno start, shouldn't need 
 
 
 
