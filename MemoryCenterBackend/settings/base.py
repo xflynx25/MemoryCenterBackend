@@ -22,7 +22,6 @@ print('in base')
 from pathlib import Path
 from datetime import timedelta
 import os 
-SECRET_KEY = os.environ.get('SECRET_KEY')
 DEBUG = True # temp hack
 if 'True' == os.environ.get('DEBUG'):
     DEBUG = True
@@ -32,6 +31,7 @@ else:
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent #extra because we subfoldered the settings
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 APPLICATION_NAME = 'MemoryCenterBackend' 
 
 # Quick-start development settings - unsuitable for production

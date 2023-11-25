@@ -3,3 +3,13 @@ python manage.py makemigrations
 python manage.py migrate
 python3 manage.py runserver
 python manage.py createsuperuser
+
+git remote add heroku https://git.heroku.com/memory-center-backend.git
+git remote -v 
+git push heroku main
+
+
+
+
+# when feeling ready to upgrade workflow
+heroku autocomplete
