@@ -38,7 +38,7 @@ APPLICATION_NAME = 'MemoryCenterBackend'
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['memory-center-backend-0c697b5afd37.herokuapp.com', 'localhost', '127.0.0.1']
 
 # CORS - MANUAL
 CORS_ALLOW_CREDENTIALS = False
