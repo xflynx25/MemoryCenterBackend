@@ -22,6 +22,7 @@ print('in base')
 from pathlib import Path
 from datetime import timedelta
 import os 
+SECRET_KEY = os.environ.get('SECRET_KEY')
 DEBUG = True # temp hack
 if 'True' == os.environ.get('DEBUG'):
     DEBUG = True

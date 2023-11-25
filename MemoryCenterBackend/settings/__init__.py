@@ -7,8 +7,8 @@ from .base import *
 import os
 import dj_database_url
 import importlib
-environment = os.getenv('DJANGO_ENV')
-print('env is ', environment)
+DJANGO_ENV = os.environ.get('DJANGO_ENV')
+print('env is ', DJANGO_ENV)
 
 # Default to SQLite for local development
 DATABASES = {
@@ -23,8 +23,8 @@ if 'DATABASE_URL' in os.environ:
     DATABASES['default'] = dj_database_url.config(os.environ.get('DATABASE_URL'))
 
 # Load environment-specific settings
-if environment:
-    module = importlib.import_module(f'.{environment}', APPLICATION_NAME + '.settings')
+if DJANGO_ENV:
+    module = importlib.import_module(f'.{DJANGO_ENV}', APPLICATION_NAME + '.settings')
     for setting in dir(module):
         if setting.isupper():
             locals()[setting] = getattr(module, setting)
