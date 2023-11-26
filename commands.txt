@@ -10,6 +10,10 @@ git push heroku main
 # make sure to create Procfile
 heroku ps:scale web=1 -a memory-center-backend // manual dyno start, shouldn't need 
 
+# add postgres database 
+heroku addons:create heroku-postgresql (doesn't work anymore because no free tier)
+heroku run python manage.py migrate
+
 
 
 
