@@ -101,9 +101,13 @@ def user_register(request):
         print("Error: Invalid secret message")
         return Response({"status": "failure", "error": "Invalid secret message"}, status=400)
     else:
+        print('about to make custom user')
         user = CustomUser.objects.create_user(username=username)
+        print('created user')
         user.set_password(password)
+        print('set password')
         user.save()
+        print('saved')
 
         refresh = RefreshToken.for_user(user)
         print("User registered successfully")

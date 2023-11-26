@@ -15,3 +15,9 @@ heroku ps:scale web=1 -a memory-center-backend // manual dyno start, shouldn't n
 
 # when feeling ready to upgrade workflow
 heroku autocomplete
+
+
+# when deploying
+- you need to set the 3 env variables in settings.py
+- need to set the hostname in ALLOWED_HOSTS
+- debug=False
