@@ -49,10 +49,13 @@ except:
 @csrf_exempt
 @api_view(['POST'])
 def user_login(request):
+    print('inside user login')
     data = request.data
     username = data.get("username")
+    print('passed after get username')
     password = data.get("password")
     user = authenticate(request, username=username, password=password)
+    print('user is : ', user)
     if user is not None:
         refresh = RefreshToken.for_user(user)
         response =  Response({
