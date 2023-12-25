@@ -20,7 +20,10 @@ DATABASES = {
 
 # Override with Postgres if DATABASE_URL is present (e.g., on Heroku)
 if 'DATABASE_URL' in os.environ:
-    DATABASES['default'] = dj_database_url.config(os.environ.get('DATABASE_URL'))
+    print('THE DATABASE WAS IN THE ENVIRON')
+    DATABASES['default'] = dj_database_url.config(conn_max_age=600)
+    #DATABASES['default'] = dj_database_url.config(os.environ.get('DATABASE_URL'))
+
 
 # Load environment-specific settings
 if DJANGO_ENV:
