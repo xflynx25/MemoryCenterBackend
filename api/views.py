@@ -66,7 +66,7 @@ def user_login(request):
         print(f'Returning from user login: {response}')
         return response
     else:
-        return Response({"status": "failure"})
+        return Response({"status": "failure", "error": "Not a valid combo bro"})
 
 
 @csrf_exempt
