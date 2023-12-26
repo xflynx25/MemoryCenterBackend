@@ -10,8 +10,8 @@ class CustomUser(AbstractUser):
 
 # backward map to TopicTable.topics
 class ItemTable(models.Model):
-    front = models.CharField(max_length=30)
-    back = models.CharField(max_length=30)
+    front = models.CharField(max_length=100)
+    back = models.CharField(max_length=100)
     users = models.ManyToManyField(settings.AUTH_USER_MODEL, through='UserItem', related_name='items')
     # these concepts should probably be a subtable. 
     #conceptid = models.IntegerField() # id for gropuing items as the same effective concept, for future multimodal expansion
@@ -27,7 +27,7 @@ class UserItem(models.Model):
 # backward map to CollectionTable.collections
 class TopicTable(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    topic_name = models.CharField(max_length=30)
+    topic_name = models.CharField(max_length=50)
     description = models.CharField(max_length=100, blank=True)
     visibility = models.CharField(max_length=30, default='private')
     #visibility_last_change = models.CharField(max_length=30) # to stop constant switching, time consuming operation, maybe not necessary
@@ -41,7 +41,7 @@ class TopicItem(models.Model):
 
 class CollectionTable(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    collection_name = models.CharField(max_length=30)
+    collection_name = models.CharField(max_length=50)
     description = models.CharField(max_length=750, blank=True)
     visibility = models.CharField(max_length=30, default='private')
     #visibility_last_change = models.CharField(max_length=30) # to stop constant switching, time consuming operation, maybe not necessary
