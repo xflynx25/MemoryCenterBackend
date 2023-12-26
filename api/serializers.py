@@ -117,11 +117,17 @@ class GetTopicTableItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'front', 'back', 'score']
 
     def get_score(self, obj):
-        user_item = UserItem.objects.filter(user=self.context['request'], item=obj).first()
+        # user=self.context['request'] ,,, how we used to do it to get the user that is accessing
+        profile_user_id = self.context.get('profile_user_id')
+        user_item = UserItem.objects.filter(user_id=profile_user_id, item=obj).first()
         MAX_SCORE_BACKEND = 8 #int(os.getenv('MAX_SCORE_BACKEND'))
         MAX_SCORE_CLIENT = 4 #int(os.getenv('MAX_SCORE_CLIENT'))
-        score = user_item.score
-        return (MAX_SCORE_CLIENT + 1 if score == MAX_SCORE_BACKEND else min(score, MAX_SCORE_CLIENT))
+
+        if user_item is not None: # should not be none if using the profile
+            score = user_item.score
+            return (MAX_SCORE_CLIENT + 1 if score == MAX_SCORE_BACKEND else min(score, MAX_SCORE_CLIENT))
+        else:
+            return 0 # showing how you have done on it, you haven't yet interacted
 
 
 

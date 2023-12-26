@@ -60,6 +60,7 @@ def user_login(request):
         refresh = RefreshToken.for_user(user)
         response =  Response({
             'status': 'success',
+            'user_id': user.id,  # Include the user ID in the response
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         })
@@ -116,6 +117,7 @@ def user_register(request):
         print("User registered successfully")
         return Response({
             'status': 'success',
+            'user_id': user.id,  # Include the user ID in the response
             'refresh': str(refresh),
             'access': str(refresh.access_token),
             },
@@ -161,14 +163,14 @@ def get_user(request, user_id):
         return get_object_or_404(CustomUser, id=user_id)
 
 
-def get_objects(user, request_user, model, serializer):
+def get_objects(user, request_user, model, serializer, context=None):
     if user == request_user:
         objects = model.objects.filter(user=user)
     else:
         objects = model.objects.filter(Q(user=user) & (Q(visibility='global_edit') | Q(visibility='global_view')))
     
     # Get the data with the request in the context to access it in the serializer
-    return serializer(objects, many=True, context={'request': request_user}).data
+    return serializer(objects, many=True, context=context).data
 
 
 
@@ -236,7 +238,8 @@ def get_all_items(request, topic_id = None):
 @permission_classes([IsAuthenticated])
 def get_all_topics(request, user_id=None):
     user = get_user(request, user_id)
-    data = get_objects(user, request.user, TopicTable, GetTopicTableSerializer)
+    context = {'request_user': request.user, 'profile_user_id': user.id}
+    data = get_objects(user, request.user, TopicTable, GetTopicTableSerializer, context=context)
     return Response(data, content_type='application/json; charset=utf-8')
 
 
