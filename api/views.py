@@ -434,6 +434,8 @@ def add_items_to_topic(request):
     for item in items:
         try:
             front, back = item
+            if not front.strip() or not back.strip():  # Check for blank or whitespace-only strings
+                continue  # Skip this item
         except: 
             return Response({"error": "Both front and back should be provided."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -477,6 +479,10 @@ def edit_items_in_topic(request):
         elif action == 'update':
             new_front = item_edit.get('front')
             new_back = item_edit.get('back')
+
+            if not (new_front and new_front.strip()) or not (new_back and new_back.strip()):
+                continue  # Skip this update if front or back is blank
+
             front = new_front if new_front else item.front
             back = new_back if new_back else item.back
             item_serializer = ItemTableSerializer(data={'topic': topic_id, 'front': front, 'back': back})
@@ -509,10 +515,10 @@ def edit_items_in_topic_full(request):
         front = item.get('front')
         back = item.get('back')
 
+        if not (front and front.strip()) or not (back and back.strip()):
+            continue  # Skip this item if front or back is blank
         # Ignore items where both front and back are blank
-        if not (front or back):
-            continue
-
+        
         if id == -1:  # New item to be added
             item_instance = ItemTable.objects.create(front=front, back=back)
             UserItem.objects.create(item=item_instance, user=request.user)
