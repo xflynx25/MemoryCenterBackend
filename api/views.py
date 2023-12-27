@@ -28,6 +28,13 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 
 
+# eventually move to config file
+MAX_TOPICS_PER_USER = 40
+MAX_COLLECTIONS_PER_USER = 10
+MAX_ITEMS_PER_TOPIC = 200
+
+
+
 # in debug we import the sensitive views, otherwise none
 # in real production we delete sensitive views file, so even if they 
 # # # manage to change DEBUG, it still will return blank
@@ -345,6 +352,10 @@ def delete_topic(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_collection(request):
+    # Check if the user has reached the collection limit
+    if CollectionTable.objects.filter(user=request.user).count() >= MAX_COLLECTIONS_PER_USER:
+        return Response({"error": "Collection limit reached"}, status=400)
+
     data = request.data.copy()
     collection_name = data.get('collection_name')
     if not collection_name:
@@ -361,6 +372,10 @@ def create_collection(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_topic(request):
+    # Check if the user has reached the topic limit
+    if TopicTable.objects.filter(user=request.user).count() >= MAX_TOPICS_PER_USER:
+        return Response({"error": "Topic limit reached"}, status=400)
+
     data = request.data.copy()
     topic_name = data.get('topic_name')
     if not topic_name:
@@ -419,23 +434,25 @@ def edit_topics_in_collection(request):
 @permission_classes([IsAuthenticated])
 def add_items_to_topic(request):
     topic_id = request.data.get('topic_id')
-    items = request.data.get('items')
-
-    print(f"Request to add items to topic: {topic_id}")
+    new_items = request.data.get('items')
 
     # Fetch the topic
     topic = get_object_or_404(TopicTable, id=topic_id)
 
     # Check if the user has access
     if not has_access(topic, request.user, 'edit'):
-        print(f"User {request.user} does not have edit access to topic {topic_id}")
         return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
 
-    for item in items:
+    # Check if adding new items exceeds the item limit
+    current_item_count = topic.items.count()
+    if current_item_count + len(new_items) > MAX_ITEMS_PER_TOPIC:
+        return Response({"error": "Adding these items would exceed the item limit for this topic"}, status=400)
+
+    for item in new_items:
         try:
             front, back = item
-            if not front.strip() or not back.strip():  # Check for blank or whitespace-only strings
-                continue  # Skip this item
+            if not front.strip() or not back.strip():
+                continue  # Skip blank items
         except: 
             return Response({"error": "Both front and back should be provided."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -443,12 +460,8 @@ def add_items_to_topic(request):
         UserItem.objects.create(item=item_instance, user=request.user)
         TopicItem.objects.create(item=item_instance, topic=topic)
 
-        print(f"Added item with front {front}, back {back} to topic {topic_id} for user {request.user}")
-
-    user_items = UserItem.objects.filter(user=request.user).values()
-    print(f"Current UserItems for user {request.user}: {user_items}")
-
     return Response({"status": "success"}, status=status.HTTP_200_OK)
+
 
 
 #NOT TESTED
@@ -504,9 +517,22 @@ def edit_items_in_topic_full(request):
     # Check if the user has access
     if not has_access(topic, request.user, 'edit'):
         return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Filter out empty items
+    valid_items = [item for item in final_items if item.get('front').strip() and item.get('back').strip()]
 
-    # Get the current items for the topic
+    # Calculate the net item count change
     current_item_ids = set(TopicItem.objects.filter(topic=topic).values_list('item__id', flat=True))
+    new_item_count = sum(1 for item in valid_items if item.get('id') == -1)
+    deleted_item_count = len(current_item_ids) - len(set(item.get('id') for item in valid_items if item.get('id') != -1))
+
+    net_item_change = new_item_count - deleted_item_count
+
+    # Check if the net change will exceed the limit
+    if topic.items.count() + net_item_change > MAX_ITEMS_PER_TOPIC:
+        return Response({"error": "Item limit for this topic would be exceeded"}, status=400)
+
+    
 
     # For each item in final_items, check if it's an addition or an update
     new_item_ids = set()
@@ -517,7 +543,7 @@ def edit_items_in_topic_full(request):
 
         if not (front and front.strip()) or not (back and back.strip()):
             continue  # Skip this item if front or back is blank
-        # Ignore items where both front and back are blank
+        # Ignore items where both front and back are blank, we counted above, but not removed actually
         
         if id == -1:  # New item to be added
             item_instance = ItemTable.objects.create(front=front, back=back)
