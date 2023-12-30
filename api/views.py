@@ -630,7 +630,8 @@ def edit_topics_in_collection_full(request):
 @permission_classes([IsAuthenticated])
 def fetch_n_from_collection(request):
     collection_id = request.GET.get('collection_id')
-    n = int(request.GET.get('n'))
+    n_old = int(request.GET.get('n_old'))
+    n_zero = int(request.GET.get('n_zero'))
     user = request.user
 
     collection = get_object_or_404(CollectionTable, id=collection_id)
@@ -641,6 +642,7 @@ def fetch_n_from_collection(request):
     collection_topics = collection.collectiontopic_set.filter(is_active=True)
     active_topics_in_collection = [ct.topic for ct in collection_topics]
 
+    # Constants for filtering
     MAX_SCORE_BACKEND = 8
     MAX_SCORE_CLIENT = 4
     LEVEL_A_TIME_FREQUENCY = timedelta(days=7)
@@ -652,7 +654,17 @@ def fetch_n_from_collection(request):
         item__topics__in=active_topics_in_collection,
     ).select_related('item')
 
-    # Apply score and time-based filtering
+    # Fetch random level 0 items with additional filtering
+    level_zero_items = user_items.filter(score=0).order_by('?')[:n_zero]
+    level_zero_items = [
+        user_item for user_item in level_zero_items
+        if timezone.now() - user_item.last_seen >= LEVEL_B_TIME_FREQUENCY
+    ]
+
+    # Exclude level 0 items from the older items query
+    user_items = user_items.exclude(id__in=[ui.id for ui in level_zero_items])
+
+    # Apply score and time-based filtering for older items
     user_items = [
         user_item for user_item in user_items
         if (
@@ -662,16 +674,15 @@ def fetch_n_from_collection(request):
         )
     ]
 
-    # Check if there are no user items after filtering
-    if not user_items:
-        return Response({"error": "No More Items"}, status=405) # random code. 
+    # Sort and limit results for older items
+    old_items = sorted(user_items, key=lambda ui: ui.last_seen)[:n_old]
 
-    # Sort and limit results
-    user_items = sorted(user_items, key=lambda ui: ui.last_seen)[:n]
+    # Combine level zero items and old items
+    combined_items = level_zero_items + old_items
 
-    serializer = UserItemSerializer(user_items, many=True)
-    #print(serializer.data)
+    serializer = UserItemSerializer(combined_items, many=True)
     return Response(serializer.data, content_type='application/json; charset=utf-8')
+
 
 
 # Increments the score, unless score == MAX_SCORE
