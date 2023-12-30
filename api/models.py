@@ -10,8 +10,8 @@ class CustomUser(AbstractUser):
 
 # backward map to TopicTable.topics
 class ItemTable(models.Model):
-    front = models.CharField(max_length=100)
-    back = models.CharField(max_length=100)
+    front = models.CharField(max_length=200)
+    back = models.CharField(max_length=200)
     users = models.ManyToManyField(settings.AUTH_USER_MODEL, through='UserItem', related_name='items')
     # these concepts should probably be a subtable. 
     #conceptid = models.IntegerField() # id for gropuing items as the same effective concept, for future multimodal expansion
