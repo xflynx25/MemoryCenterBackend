@@ -1,0 +1,10 @@
+setup in the readme is pretty good here
+
+the settings folder had lots of little traps
+the environment variables need to be set even if not accessed 
+cors is still complicated to implement
+as usual, if using ios or android simulator need to change the endpoint (on frontend)
+
+in general though, basically just using the commands from commands.txt
+
+trailing slashes matter 

@@ -25,3 +25,7 @@ heroku autocomplete
 - you need to set the 3 env variables in settings.py
 - need to set the hostname in ALLOWED_HOSTS
 - debug=False
+
+
+# debugging heroku
+heroku logs --tail
